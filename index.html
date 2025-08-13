@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ISTE Freshers Treasure Hunt</title>
-    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -260,7 +259,6 @@
             text-align: center;
             font-size: 1.5rem;
             letter-spacing: 5px;
-            max-width: 150px; /* Limit width of PIN input */
         }
         
         .status {
@@ -291,6 +289,12 @@
             background: #f0f7ff;
             border-radius: 10px;
             margin: 15px 0;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         .location-icon {
@@ -445,20 +449,12 @@
             border-radius: 8px;
             width: 100%;
             margin: 5px 0;
-            background-color: var(--light);
         }
         
         .editable-field:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
-        }
-
-        .pin-edit-button {
-            padding: 5px 10px;
-            font-size: 0.8rem;
-            margin-left: 5px;
-            border-radius: 5px;
         }
         
         .score-table {
@@ -539,9 +535,6 @@
             .pin-input {
                 flex-direction: column;
             }
-            .pin-input input {
-                max-width: 100%;
-            }
         }
     </style>
 </head>
@@ -558,7 +551,7 @@
                 </div>
                 <div class="controls">
                     <button class="btn btn-outline" id="resetBtn">
-                        <i class="fas fa-sync-alt"></i> Reset All Data
+                        <i class="fas fa-sync-alt"></i> Reset All
                     </button>
                 </div>
             </div>
@@ -583,11 +576,17 @@
                 <div class="form-group">
                     <label for="team-select">Select Your Team</label>
                     <select id="team-select">
-                        <!-- Options will be populated from ROUTES keys -->
+                        <option value="TEAM_01">Team 01</option>
+                        <option value="TEAM_02">Team 02</option>
+                        <option value="TEAM_03">Team 03</option>
+                        <option value="TEAM_04">Team 04</option>
+                        <option value="TEAM_05">Team 05</option>
+                        <option value="TEAM_06">Team 06</option>
+                        <option value="TEAM_07">Team 07</option>
+                        <option value="TEAM_08">Team 08</option>
+                        <option value="TEAM_09">Team 09</option>
+                        <option value="TEAM_10">Team 10</option>
                     </select>
-                    <button class="btn btn-primary ml-2" id="reset-team-btn" style="padding: 10px 15px; font-size: 0.9rem;">
-                        <i class="fas fa-undo"></i> Reset My Progress
-                    </button>
                 </div>
                 
                 <div class="progress-container">
@@ -595,21 +594,29 @@
                         <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
                     </div>
                     <div class="progress-label">
-                        <span id="progress-text">0 / 0 Checkpoints</span>
-                        <span id="current-location-label"></span>
+                        <span>Checkpoints Completed</span>
+                        <span id="progress-text">0/7</span>
                     </div>
                 </div>
                 
                 <div id="task-section">
-                    <!-- Task card will be dynamically loaded here -->
+                    <div class="task-card">
+                        <div class="task-title">Library Cipher Challenge</div>
+                        <div class="task-instructions">
+                            Find the marked book at shelf 'CS-01'. Decode: Page 42 → 5th word, Page 7 → 1st, Page 99 → 3rd, then anagram the four words to get a campus keyword. Show marshal.
+                        </div>
+                        <div class="task-proof">
+                            <strong>Proof Required:</strong> Show the four words + final keyword to marshal.
+                        </div>
+                    </div>
                 </div>
                 
-                <div id="pin-verification-section">
+                <div class="pin-section">
                     <h3>Unlock Next Clue</h3>
                     <p>After completing the task, ask the marshal for the 4-digit PIN to unlock your next clue.</p>
                     
                     <div class="pin-input">
-                        <input type="text" id="pin-input" maxlength="4" placeholder="••••" inputmode="numeric" pattern="[0-9]*">
+                        <input type="text" id="pin-input" maxlength="4" placeholder="••••">
                         <button class="btn btn-primary" id="verify-btn">
                             <i class="fas fa-lock-open"></i> Verify PIN
                         </button>
@@ -618,8 +625,26 @@
                     <div id="pin-status" class="status" style="display: none;"></div>
                 </div>
                 
-                <div id="next-location-section" style="display: none;">
-                    <!-- Next location details will be loaded here -->
+                <div id="next-location" style="display: none;">
+                    <h3>Next Location</h3>
+                    <div class="location-card">
+                        <i class="fas fa-building location-icon"></i>
+                        <div class="location-info">
+                            <h3>Seminar Hall 1 – Block A</h3>
+                            <p>Hall • Block A</p>
+                        </div>
+                        <span class="badge badge-primary">Next</span>
+                    </div>
+                    
+                    <div class="task-card">
+                        <div class="task-title">Lightning Skit</div>
+                        <div class="task-instructions">
+                            Act out 'Inventing the light bulb' in 20 seconds without words. End with a freeze pose.
+                        </div>
+                        <div class="task-proof">
+                            <strong>Proof Required:</strong> Marshal amused (subjective but fair).
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -633,21 +658,67 @@
                 </div>
                 
                 <div class="view-toggle">
-                    <button class="view-btn active" data-view="teams">All Teams</button>
-                    <button class="view-btn" data-view="checkpoints">Checkpoints</button>
+                    <div class="view-btn active" data-view="teams">All Teams</div>
+                    <div class="view-btn" data-view="checkpoints">Checkpoints</div>
                 </div>
                 
                 <div id="teams-view">
                     <h3>Team Progress Overview</h3>
-                    <div class="team-grid" id="coordinator-team-grid">
+                    <div class="team-grid">
                         <!-- Team cards will be generated here -->
                     </div>
                 </div>
                 
                 <div id="checkpoints-view" style="display: none;">
-                    <h3>Location Tasks & PINs</h3>
-                    <div id="checkpoint-list-container">
-                        <!-- Checkpoint cards will be generated here -->
+                    <h3>All Checkpoints</h3>
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <h3 class="card-title">Library – Block A</h3>
+                            <span class="badge badge-primary">Library</span>
+                        </div>
+                        
+                        <div class="task-card">
+                            <div class="task-title">Book Cipher</div>
+                            <div class="task-instructions">
+                                Find the marked book at shelf 'CS-01'. Decode: Page 42 → 5th word, Page 7 → 1st, Page 99 → 3rd, then anagram the four words to get a campus keyword. Show marshal.
+                            </div>
+                            <div class="task-proof">
+                                <strong>Proof Required:</strong> Show the four words + final keyword to marshal.
+                            </div>
+                            <div class="form-group">
+                                <label>PIN</label>
+                                <input type="text" class="editable-field" value="1843">
+                            </div>
+                        </div>
+                        
+                        <div class="task-card">
+                            <div class="task-title">Quiet Hunt</div>
+                            <div class="task-instructions">
+                                Locate a book whose author's initials match your team name initials. Take a silent 'reading circle' photo (no faces needed) and show to marshal.
+                            </div>
+                            <div class="task-proof">
+                                <strong>Proof Required:</strong> Photo + book spine.
+                            </div>
+                            <div class="form-group">
+                                <label>PIN</label>
+                                <input type="text" class="editable-field" value="2961">
+                            </div>
+                        </div>
+                        
+                        <div class="task-card">
+                            <div class="task-title">Index Race</div>
+                            <div class="task-instructions">
+                                Use the book index to find the definition of 'algorithm'. Copy exactly the first ten words by hand on the slip. No phones.
+                            </div>
+                            <div class="task-proof">
+                                <strong>Proof Required:</strong> Handwritten line shown to marshal.
+                            </div>
+                            <div class="form-group">
+                                <label>PIN</label>
+                                <input type="text" class="editable-field" value="5308">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -670,8 +741,67 @@
                             <th>Status</th>
                         </tr>
                     </thead>
-                    <tbody id="score-table-body">
-                        <!-- Score rows will be dynamically generated -->
+                    <tbody>
+                        <tr>
+                            <td>Team 01</td>
+                            <td>5/7</td>
+                            <td class="time-display">00:42:18</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 02</td>
+                            <td>3/7</td>
+                            <td class="time-display">00:28:45</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 03</td>
+                            <td>7/7</td>
+                            <td class="time-display">01:15:32</td>
+                            <td><span class="badge badge-success">Finished</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 04</td>
+                            <td>2/7</td>
+                            <td class="time-display">00:18:22</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 05</td>
+                            <td>6/7</td>
+                            <td class="time-display">00:55:10</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 06</td>
+                            <td>1/7</td>
+                            <td class="time-display">00:12:05</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 07</td>
+                            <td>4/7</td>
+                            <td class="time-display">00:33:47</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 08</td>
+                            <td>7/7</td>
+                            <td class="time-display">00:58:21</td>
+                            <td><span class="badge badge-success">Finished</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 09</td>
+                            <td>0/7</td>
+                            <td class="time-display">00:00:00</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
+                        <tr>
+                            <td>Team 10</td>
+                            <td>3/7</td>
+                            <td class="time-display">00:25:14</td>
+                            <td><span class="badge badge-primary">In Progress</span></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -686,9 +816,7 @@
     </footer>
 
     <script>
-        /***************************
-         * CONFIGURATION & DATA
-         ***************************/
+        // Sample data for the treasure hunt
         const LOCATIONS = {
             LIB_A: { id: "LIB_A", title: "Library – Block A", block: "A", type: "Library" },
             DRAW_A: { id: "DRAW_A", title: "Drawing Room – Block A", block: "A", type: "Room" },
@@ -787,4 +915,16 @@
             NB_A6: [
                 { name: "Right or Left", instructions: "Count how many notices have right-aligned text. Say the number.", proof: "Correct count.", pin: "9042" },
                 { name: "Icon Match", instructions: "Find a phone/email icon. Mimic it as a pose.", proof: "Pose matches.", pin: "2585" },
-                { name: "Tear Edge", instructions: 
+                { name: "Tear Edge", instructions: "Locate a torn edge notice. Estimate the missing area in squares (1 sq = your palm).", proof: "Reasonable estimate.", pin: "1177" },
+            ],
+        };
+
+        const ROUTES = {
+            TEAM_01: ["HALL_A1", "LIB_A", "CANT_B", "LAB_P1", "NB_A3", "CANT_C", "HALL_C3"],
+            TEAM_02: ["CANT_C", "DRAW_A", "NB_A2", "LAB_P2", "CANT_B", "HALL_A2", "LIB_A"],
+            TEAM_03: ["HALL_A2", "NB_A1", "CANT_C", "LIB_A", "LAB_P1", "DRAW_A", "CANT_B"],
+            TEAM_04: ["NB_A4", "LAB_DS", "HALL_A1", "CANT_B", "LIB_A", "HALL_C3", "CANT_C"],
+            TEAM_05: ["LAB_P2", "HALL_C3", "CANT_B", "NB_A5", "DRAW_A", "LIB_A", "HALL_A2"],
+            TEAM_06: ["NB_A6", "CANT_C", "HALL_A1", "LAB_DS", "CANT_B", "NB_A2", "LIB_A"],
+            TEAM_07: ["CANT_B", "NB_A3", "LAB_P1", "HALL_A2", "LIB_A", "DRAW_A", "HALL_C3"],
+            TEAM_08: ["DRAW_A", "LIB_A", "NB_A4", "CANT_C", "LAB_P2", "HALL_A1", 
