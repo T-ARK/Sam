@@ -1,192 +1,558 @@
-import React, { useEffect, useMemo, useState } from "react"; import { Check, Lock, Unlock, MapPin, Flag, Users, Shield, Download, QrCode, RefreshCcw, ClipboardList, TimerReset } from "lucide-react";
-
-/**
-
-ISTE FRESHERS TREASURE HUNT – OFFLINE WEB APP (AI-RESISTANT)
-
-
----
-
-Single-file React app. No server required. Open index.html with this bundle or drop into a React/Vite project.
-
-Goals:
-
-Orchestrate multiple unique routes for many teams (25–35 teams works fine).
-
-
-Each checkpoint requires a HUMAN marshal to verify a task, then verbally give a 4-digit PIN to unlock the next step.
-
-
-Tasks are physical/observational/creative so AI cannot solve them remotely.
-
-
-Works entirely offline; state saved in localStorage per device.
-
-
-Includes a "Printables" area: per-location marshal task sheets + team route cards.
-
-
-HOW TO USE (Organizers):
-
-1. Edit the ROUTES and LOCATIONS definitions below to match your campus.
-
-
-
-2. Print the Marshal Sheets and Route Cards from the Printables tab.
-
-
-
-3. Station a marshal at each location with the sheet (contains the task + the secret PIN).
-
-
-
-4. Give each team ONE device with this site open (or they can use their own phones). They select their Team and follow the flow.
-
-
-
-5. After a team completes the task at a checkpoint, the marshal TELLS them the 4-digit PIN. They enter it to unlock the next clue.
-
-
-
-NOTE: PINs are intentionally hard-coded here so you can print them. Change before event. */
-
-
-// ---------- CONFIG: LOCATIONS ---------- // // Keep IDs stable. You can rename titles or change tasks without breaking routes. const LOCATIONS = { LIB_A: { id: "LIB_A", title: "Library – Block A", block: "A", type: "Library" }, DRAW_A: { id: "DRAW_A", title: "Drawing Room – Block A", block: "A", type: "Room" }, LAB_DS: { id: "LAB_DS", title: "Data Science Lab – Block A", block: "A", type: "Computer Lab" }, LAB_P1: { id: "LAB_P1", title: "Programming Lab 1 – Block A", block: "A", type: "Computer Lab" }, LAB_P2: { id: "LAB_P2", title: "Programming Lab 2 – Block A", block: "A", type: "Computer Lab" }, HALL_A1: { id: "HALL_A1", title: "Seminar Hall 1 – Block A", block: "A", type: "Hall" }, HALL_A2: { id: "HALL_A2", title: "Seminar Hall 2 – Block A", block: "A", type: "Hall" }, HALL_C3: { id: "HALL_C3", title: "Seminar Hall 3 – Block C", block: "C", type: "Hall" }, CANT_B: { id: "CANT_B", title: "Canteen – Block B", block: "B", type: "Canteen" }, CANT_C: { id: "CANT_C", title: "Canteen – Block C", block: "C", type: "Canteen" }, NB_A1: { id: "NB_A1", title: "Notice Board 1 – Block A", block: "A", type: "Notice Board" }, NB_A2: { id: "NB_A2", title: "Notice Board 2 – Block A", block: "A", type: "Notice Board" }, NB_A3: { id: "NB_A3", title: "Notice Board 3 – Block A", block: "A", type: "Notice Board" }, NB_A4: { id: "NB_A4", title: "Notice Board 4 – Block A", block: "A", type: "Notice Board" }, NB_A5: { id: "NB_A5", title: "Notice Board 5 – Block A", block: "A", type: "Notice Board" }, NB_A6: { id: "NB_A6", title: "Notice Board 6 – Block A", block: "A", type: "Notice Board" }, };
-
-// ---------- CONFIG: AI-RESISTANT TASK BANK ---------- // // Each location has 3+ variants. Marshals can rotate or choose. // Each task has an associated 4-digit PIN that marshal reveals only after verifying success. // IMPORTANT: Change pins before event! const TASKS = { LIB_A: [ { name: "Book Cipher", instructions: "Find the marked book at shelf 'CS-01'. Decode: Page 42 → 5th word, Page 7 → 1st, Page 99 → 3rd, then anagram the four words to get a campus keyword. Show marshal.", proof: "Show the four words + final keyword to marshal.", pin: "1843", }, { name: "Quiet Hunt", instructions: "Locate a book whose author's initials match your team name initials. Take a silent 'reading circle' photo (no faces needed) and show to marshal.", proof: "Photo + book spine.", pin: "2961", }, { name: "Index Race", instructions: "Use the book index to find the definition of 'algorithm'. Copy exactly the first ten words by hand on the slip. No phones.", proof: "Handwritten line shown to marshal.", pin: "5308", }, ], DRAW_A: [ { name: "One-Min Logo", instructions: "As a team, sketch the ISTE logo in 60 seconds using only triangles. All team members must add at least one triangle.", proof: "Completed sketch.", pin: "4410", }, { name: "Robot Charades", instructions: "In absolute silence, act like a malfunctioning robot for 20 seconds while tracing a path on paper that spells a letter. Marshal must guess the letter.", proof: "Marshal says the letter correctly.", pin: "7724", }, { name: "Blindfold Blueprint", instructions: "One member is blindfolded and draws a simple house guided only by teammates' verbal directions (no pointing).", proof: " recognizable house sketch.", pin: "0956", }, ], LAB_DS: [ { name: "Cable Logic", instructions: "On the table are 5 labeled cables (A–E). Arrange them so that 'binary' order (0=short,1=long) matches a given pattern on the card.", proof: "Correct arrangement per marshal's key.", pin: "6127", }, { name: "Post-it Cluster", instructions: "Group 7 tech terms into 2 clusters (Data vs. Model) using post-its. Explain your grouping in one sentence.", proof: "Correct/acceptable clustering.", pin: "3885", }, { name: "Decode & Point", instructions: "Given a printed line of 8-bit binary, convert to ASCII letters (use any method) and point to the next block mentioned.", proof: "Correct block identified.", pin: "4409", }, ], LAB_P1: [ { name: "If-Else Relay", instructions: "Marshal reads conditions (IF wearing glasses THEN clap twice; ELSE stomp once; IF wearing watch THEN spin). Team performs the right sequence.", proof: "Correct sequence performed without error.", pin: "1342", }, { name: "Sort Yourselves", instructions: "Sort the team by birthday month from Jan→Dec without speaking. When done, say the months in order.", proof: "Correct order.", pin: "5571", }, { name: "Stack & Queue", instructions: "Use cups to demonstrate PUSH, POP (stack) and ENQUEUE, DEQUEUE (queue). Marshal calls operations; perform live.", proof: "Performed correctly.", pin: "2090", }, ], LAB_P2: [ { name: "Regex Hunt", instructions: "On a printed sheet of random characters, circle all vowels that are immediately followed by a digit. Count aloud.", proof: "Correct count.", pin: "6815", }, { name: "Binary Beat", instructions: "Clap '1', stay silent '0' to perform this 16-bit rhythm. Teammate writes the bits they hear.", proof: "Written bits match the card.", pin: "7602", }, { name: "Pointer Dance", instructions: "Place arrows on the floor to form a cycle (A→B→C→A). Walk the cycle twice, then break it by removing one arrow to make a list.", proof: "Cycle then linear list demonstrated.", pin: "9988", }, ], CANT_B: [ { name: "Human Wi‑Fi", instructions: "Pose as a human Wi‑Fi icon (concentric arcs). Take a photo and show marshal (faces optional).", proof: "Photo shown.", pin: "4321", }, { name: "Menu Cipher", instructions: "Using the menu board, take the first letter of 6 different items to form a word related to tech. Read it aloud.", proof: "Recognizable tech word.", pin: "8703", }, { name: "Under‑Table Quest", instructions: "Find the sticker under a table with a shape. Recreate the shape using spoons/packets on top of the table.", proof: "Shape matches.", pin: "2146", }, ], CANT_C: [ { name: "Snack Math", instructions: "Pick any 3 snack prices. Add them. Map sum to letters (A1Z26). Say the 3-letter code.", proof: "3-letter code correct.", pin: "3024", }, { name: "Queue Etiquette", instructions: "Demonstrate a perfect queue: equal spacing, quiet, forward only when allowed. Hold 10 seconds.", proof: "Marshal satisfied.", pin: "5520", }, { name: "Emoji Order", instructions: "Given 6 printed emojis, arrange to tell a 'canteen' story. Narrate in one sentence.", proof: "Coherent story.", pin: "7719", }, ], HALL_A1: [ { name: "Lightning Skit", instructions: "Act out 'Inventing the light bulb' in 20 seconds without words. End with a freeze pose.", proof: "Marshal amused (subjective but fair).", pin: "6401", }, { name: "Rebus Logic", instructions: "Solve a printed rebus (e.g., 'R E A D I N G' stacked over 'ROOM') → 'Reading Room'. Explain answer.", proof: "Correct explanation.", pin: "9011", }, { name: "Math→Word", instructions: "Solve: (7×4) – 9 = ?. Map to letter via A1Z26. Combine with two more mini sums to form a 3-letter word.", proof: "Word matches key.", pin: "2654", }, ], HALL_A2: [ { name: "Tongue Twister Relay", instructions: "Each member says one word of a tongue twister in order without mistakes. Two retries max.", proof: "Flawless round.", pin: "8842", }, { name: "Paper Tower", instructions: "Build the tallest free‑standing paper tower in 2 minutes using 6 sheets and tape.", proof: "Stands for 5 seconds.", pin: "1190", }, { name: "Echo Location", instructions: "Marshal whispers a 5-word campus phrase. Team repeats exactly. (No recording.)", proof: "Exact repeat.", pin: "3356", }, ], HALL_C3: [ { name: "Silent Sudoku Mini", instructions: "Fill a 3×3 mini Sudoku from a printed card. No talking allowed.", proof: "Correct grid.", pin: "7440", }, { name: "Tech Pictionary", instructions: "Draw a 'Bluetooth' symbol without writing letters/numbers. Teammates must guess.", proof: "Correct guess.", pin: "5529", }, { name: "Freeze Frame", instructions: "Create a silent tableau of 'Teamwork'. Hold pose for 8 seconds.", proof: "Pose held.", pin: "6625", }, ], NB_A1: [ { name: "Find the Tiny", instructions: "Locate the micro-sticker '∆' on this board. Draw it 5× bigger on the slip.", proof: "Scaled drawing.", pin: "1408" }, { name: "Word Sweep", instructions: "From any 4 notices, grab the first letter of the first line to form a word.", proof: "Word shown.", pin: "5113" }, { name: "Odd One Out", instructions: "Given 5 small icons on a card, pin the odd one to the board and explain why.", proof: "Reasonable explanation.", pin: "8864" }, ], NB_A2: [ { name: "Arrow Trail", instructions: "Follow 3 tiny arrows on the board to a small circle. Copy the circle pattern.", proof: "Pattern copied.", pin: "3301" }, { name: "Rhyme Time", instructions: "Make a two-line rhyme using a word from a notice.", proof: "Rhyme recited.", pin: "2775" }, { name: "Count & Tell", instructions: "Count total sheets on this board and say it backwards.", proof: "Correct count.", pin: "9443" }, ], NB_A3: [ { name: "Color Pick", instructions: "Name all distinct paper colors on this board within 10 seconds.", proof: "All colors named.", pin: "5012" }, { name: "Date Scan", instructions: "Find the earliest date visible and say the exact day-month-year.", proof: "Correct date.", pin: "6821" }, { name: "Font Spy", instructions: "Identify a serif vs sans-serif head on the board. Point to both.", proof: "Both identified.", pin: "7130" }, ], NB_A4: [ { name: "Corner Quest", instructions: "There is a dot in one corner (tiny). Find and touch it simultaneously as a team.", proof: "Team touching corner.", pin: "4026" }, { name: "Arrow Math", instructions: "There are 3 arrows hidden. Sum their directions: up=+1, down=−1, left=+2, right=−2.", proof: "Correct total.", pin: "2650" }, { name: "Missing Vowel", instructions: "Pick a notice title and say it without vowels.", proof: "Correct transformation.", pin: "9399" }, ], NB_A5: [ { name: "Sticker Grid", instructions: "Find a 2×2 grid of tiny stickers (•• / ••). Recreate it on paper.", proof: "Grid drawn.", pin: "7750" }, { name: "Hashtag Hunt", instructions: "Find a # symbol anywhere on this board or notices. Point it out.", proof: "Located.", pin: "6201" }, { name: "Palindrome", instructions: "From any line on a notice, extract a 3-letter palindrome (e.g., 'aba').", proof: "Palindrome shown.", pin: "4312" }, ], NB_A6: [ { name: "Right or Left", instructions: "Count how many notices have right-aligned text. Say the number.", proof: "Correct count.", pin: "9042" }, { name: "Icon Match", instructions: "Find a phone/email icon. Mimic it as a pose.", proof: "Pose matches.", pin: "2585" }, { name: "Tear Edge", instructions: "Locate a torn edge notice. Estimate the missing area in squares (1 sq = your palm).", proof: "Reasonable estimate.", pin: "1177" }, ], };
-
-// ---------- CONFIG: ROUTES (examples) ---------- // // Create as many as you need; aim 25–35 Teams for 150–200 freshers. // Each route is an ordered array of location IDs. const ROUTES = { TEAM_01: ["HALL_A1", "LIB_A", "CANT_B", "LAB_P1", "NB_A3", "CANT_C", "HALL_C3"], TEAM_02: ["CANT_C", "DRAW_A", "NB_A2", "LAB_P2", "CANT_B", "HALL_A2", "LIB_A"], TEAM_03: ["HALL_A2", "NB_A1", "CANT_C", "LIB_A", "LAB_P1", "DRAW_A", "CANT_B"], TEAM_04: ["NB_A4", "LAB_DS", "HALL_A1", "CANT_B", "LIB_A", "HALL_C3", "CANT_C"], TEAM_05: ["LAB_P2", "HALL_C3", "CANT_B", "NB_A5", "DRAW_A", "LIB_A", "HALL_A2"], TEAM_06: ["NB_A6", "CANT_C", "HALL_A1", "LAB_DS", "CANT_B", "NB_A2", "LIB_A"], TEAM_07: ["CANT_B", "NB_A3", "LAB_P1", "HALL_A2", "LIB_A", "DRAW_A", "HALL_C3"], TEAM_08: ["DRAW_A", "LIB_A", "NB_A4", "CANT_C", "LAB_P2", "HALL_A1", "CANT_B"], TEAM_09: ["LAB_DS", "CANT_B", "NB_A1", "HALL_C3", "LIB_A", "NB_A5", "HALL_A2"], TEAM_10: ["NB_A2", "DRAW_A", "HALL_A1", "CANT_B", "LAB_P1", "LIB_A", "CANT_C"], };
-
-// ---------- UTIL ---------- // const TEAM_IDS = Object.keys(ROUTES); const prettyTeam = (id) => id.replace("_", " ");
-
-const useLocalState = (key, initial) => { const [state, setState] = useState(() => { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initial; } catch { return initial; } }); useEffect(() => { localStorage.setItem(key, JSON.stringify(state)); }, [key, state]); return [state, setState]; };
-
-function Badge({ children }) { return ( <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs font-medium border"> {children} </span> ); }
-
-function Card({ children, className = "" }) { return ( <div className={"rounded-2xl shadow p-4 bg-white border " + className}>{children}</div> ); }
-
-// ---------- APP ---------- // export default function App() { const [mode, setMode] = useLocalState("mode", "team"); // team | marshal | print const [teamId, setTeamId] = useLocalState("teamId", TEAM_IDS[0]);
-
-return ( <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 text-slate-900 p-4 md:p-8"> <header className="max-w-5xl mx-auto flex items-center justify-between mb-6"> <div className="flex items-center gap-3"> <Flag className="w-7 h-7" /> <div> <h1 className="text-2xl md:text-3xl font-bold">ISTE Freshers Treasure Hunt</h1> <p className="text-sm text-slate-600">Offline • AI‑resistant • Human‑verified</p> </div> </div> <div className="flex gap-2"> <button className={px-3 py-2 rounded-xl border ${mode==="team"?"bg-black text-white":"bg-white"}} onClick={() => setMode("team")}><Users className="inline w-4 h-4 mr-1"/>Team</button> <button className={px-3 py-2 rounded-xl border ${mode==="marshal"?"bg-black text-white":"bg-white"}} onClick={() => setMode("marshal")}><Shield className="inline w-4 h-4 mr-1"/>Marshal</button> <button className={px-3 py-2 rounded-xl border ${mode==="print"?"bg-black text-white":"bg-white"}} onClick={() => setMode("print")}><Download className="inline w-4 h-4 mr-1"/>Printables</button> </div> </header>
-
-<main className="max-w-5xl mx-auto grid gap-6">
-    {mode === "team" && <TeamView teamId={teamId} setTeamId={setTeamId} />}
-    {mode === "marshal" && <MarshalView />}
-    {mode === "print" && <Printables />}
-  </main>
-
-  <footer className="max-w-5xl mx-auto mt-10 text-xs text-slate-500">
-    <p>Tip: Change route definitions, tasks, and PINs in the code before printing. Keep PINs secret.</p>
-  </footer>
-</div>
-
-); }
-
-function TeamView({ teamId, setTeamId }) { const route = ROUTES[teamId]; const [progress, setProgress] = useLocalState(progress:${teamId}, { idx: 0, unlocked: false, history: [] }); const currentId = route[progress.idx]; const location = LOCATIONS[currentId];
-
-const [pinInput, setPinInput] = useState("");
-
-const resetTeam = () => setProgress({ idx: 0, unlocked: false, history: [] });
-
-const next = () => { const nextIdx = progress.idx + 1; const newHistory = [...progress.history, currentId]; if (nextIdx >= route.length) { setProgress({ idx: nextIdx, unlocked: false, history: newHistory }); } else { setProgress({ idx: nextIdx, unlocked: false, history: newHistory }); } setPinInput(""); };
-
-const unlocked = progress.unlocked;
-
-return ( <> <Card> <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"> <div> <h2 className="text-xl font-semibold flex items-center gap-2"><Users className="w-5 h-5"/> Team</h2> <p className="text-sm text-slate-600">Pick your assigned team ID.</p> </div> <select className="px-3 py-2 rounded-xl border bg-white" value={teamId} onChange={(e)=>{setTeamId(e.target.value);}}> {TEAM_IDS.map(id => <option key={id} value={id}>{prettyTeam(id)}</option>)} </select> </div> </Card>
-
-<Card>
-    {progress.idx >= route.length ? (
-      <div className="text-center py-10">
-        <Check className="w-10 h-10 mx-auto mb-2"/>
-        <h3 className="text-2xl font-bold">Treasure Found!</h3>
-        <p className="text-slate-600">Show this screen at the finish desk.</p>
-        <div className="mt-4 flex justify-center gap-2">
-          <Badge>Route: {teamId}</Badge>
-          <Badge>Checkpoints: {route.length}</Badge>
-        </div>
-        <button className="mt-6 px-4 py-2 rounded-xl border" onClick={resetTeam}><RefreshCcw className="inline w-4 h-4 mr-1"/>Reset</button>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ISTE Freshers Treasure Hunt — Offline</title>
+  <style>
+    :root{
+      --bg:#f1f5f9; --card:#ffffff; --muted:#6b7280; --accent:#111827;
+      --border:#e6e7e9; --success:#16a34a; --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+    body{background:var(--bg);color:var(--accent);line-height:1.4;}
+    .wrap{max-width:1000px;margin:28px auto;padding:18px;}
+    header{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;}
+    .title{font-weight:700;font-size:18px;}
+    .subtitle{font-size:12px;color:var(--muted);}
+    .modes{display:flex;gap:8px;align-items:center;}
+    .mode-btn{padding:8px 12px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:600;}
+    .mode-btn.active{background:#111827;color:white;border-color:#111827;}
+    main{background:transparent;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+    select,input,button{font:inherit;}
+    select,input{padding:10px;border-radius:10px;border:1px solid var(--border);background:white;}
+    .grid{display:grid;gap:12px;}
+    .row{display:flex;gap:12px;align-items:center;}
+    .small{font-size:13px;color:var(--muted);}
+    .muted{color:var(--muted);font-size:13px;}
+    .badge{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:#f8fafc;font-size:13px;}
+    .badge.small{padding:4px 8px;font-size:12px;}
+    .task-card{background:#f8fafc;border-radius:10px;padding:10px;border:1px dashed var(--border)}
+    .btn{padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:white;cursor:pointer;}
+    .btn.full{display:block;width:100%;}
+    .btn.strong{background:#111827;color:white;border-color:#111827;}
+    .success{color:var(--success);font-weight:600;}
+    .pin{font-family:var(--mono);background:white;padding:4px 8px;border-radius:6px;border:1px solid var(--border);}
+    footer{margin-top:18px;color:var(--muted);font-size:12px;}
+    ul{padding-left:18px;margin:6px 0;}
+    pre{white-space:pre-wrap;margin:6px 0;background:transparent;padding:0;font-family:inherit}
+    .cards-row{display:flex;flex-wrap:wrap;gap:10px;}
+    .team-card{min-width:230px;border-radius:10px;padding:12px;border:1px solid var(--border);background:#fff}
+    .label{font-weight:700;font-size:13px;}
+    .print-actions{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+    .pin-copy{cursor:pointer;color:#0f172a;background:#fff;border:1px solid var(--border);padding:6px 8px;border-radius:8px;font-family:var(--mono);}
+    .icon{display:inline-block;margin-right:6px}
+    @media (min-width:720px){
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    }
+    /* Print rules */
+    @media print {
+      body{background:white;color:black}
+      header,.modes,footer,.mode-btn{display:none}
+      .wrap{max-width:100%;margin:0;padding:12px}
+      .team-card{page-break-inside:avoid}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="title">ISTE Freshers Treasure Hunt</div>
+        <div class="subtitle">Offline • AI‑resistant • Human‑verified</div>
       </div>
-    ) : (
-      <div className="grid gap-4">
-        <div className="flex items-center gap-2 text-slate-700">
-          <MapPin className="w-5 h-5"/>
-          <span className="font-medium">Next Location:</span>
-          <span>{location.title}</span>
-          <Badge>Block {location.block}</Badge>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="rounded-xl border p-4 bg-slate-50">
-            <div className="flex items-center gap-2 mb-2 text-slate-800"><ClipboardList className="w-4 h-4"/> <span className="font-semibold">Task at this checkpoint</span></div>
-            <p className="text-sm text-slate-700">Ask the marshal for your task. Complete it to receive a 4‑digit PIN.</p>
-            <div className="mt-3 flex items-center gap-2 text-xs text-slate-600"><Lock className="w-4 h-4"/>Human‑verified. No AI shortcuts.</div>
-          </div>
-
-          <div className="rounded-xl border p-4 bg-slate-50">
-            <div className="flex items-center gap-2 mb-2 text-slate-800"><QrCode className="w-4 h-4"/> <span className="font-semibold">Unlock Next Clue</span></div>
-            {unlocked ? (
-              <div className="flex items-center gap-2 text-green-700"><Unlock className="w-4 h-4"/> <span>Unlocked. Proceed to the next location.</span></div>
-            ) : (
-              <form onSubmit={(e)=>{e.preventDefault(); const ok = verifyPin(currentId, pinInput); if(ok){setProgress(p=>({...p, unlocked:true}));} else {alert("Incorrect PIN. Ask marshal.");}}}>
-                <input inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="Enter 4‑digit PIN" className="w-full px-3 py-2 rounded-xl border bg-white" value={pinInput} onChange={(e)=>setPinInput(e.target.value.replace(/\D/g, '').slice(0,4))} />
-                <button className="mt-2 w-full px-3 py-2 rounded-xl border">Verify</button>
-              </form>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2 flex-wrap">
-            {route.map((lid, i)=> (
-              <Badge key={lid+"-"+i}>{i < progress.idx ? "✓ " : i===progress.idx ? "• " : ""}{LOCATIONS[lid].type}</Badge>
-            ))}
-          </div>
-          {unlocked && (
-            <button className="px-4 py-2 rounded-xl border" onClick={next}>Continue</button>
-          )}
-        </div>
+      <div class="modes" role="tablist" aria-label="Mode switch">
+        <button id="mode-team" class="mode-btn">Team</button>
+        <button id="mode-marshal" class="mode-btn">Marshal</button>
+        <button id="mode-print" class="mode-btn">Printables</button>
       </div>
-    )}
-  </Card>
-</>
+    </header>
 
-); }
+    <main id="app-main"></main>
 
-function verifyPin(locationId, pin) { const variants = TASKS[locationId] || []; // Any one variant's PIN will unlock; marshals can choose which variant to run. return variants.some(v => v.pin === pin); }
-
-function MarshalView() { const [loc, setLoc] = useLocalState("marshal:loc", "LIB_A"); const tasks = TASKS[loc] || [];
-
-return ( <Card> <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4"> <div> <h2 className="text-xl font-semibold flex items-center gap-2"><Shield className="w-5 h-5"/> Marshal Station</h2> <p className="text-sm text-slate-600">Choose your location to view task options and the secret PINs.</p> </div> <select className="px-3 py-2 rounded-xl border bg-white" value={loc} onChange={(e)=>setLoc(e.target.value)}> {Object.values(LOCATIONS).map(L => ( <option key={L.id} value={L.id}>{L.title}</option> ))} </select> </div>
-
-<div className="grid md:grid-cols-2 gap-4">
-    {tasks.map((t, idx) => (
-      <div key={idx} className="rounded-2xl border p-4 bg-slate-50">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold">{t.name}</div>
-          <Badge>Variant {idx+1}</Badge>
-        </div>
-        <div className="text-sm text-slate-800 whitespace-pre-wrap">{t.instructions}</div>
-        <div className="text-xs text-slate-600 mt-2">Proof: {t.proof}</div>
-        <div className="mt-3 inline-flex items-center gap-2 text-sm font-mono"><Lock className="w-4 h-4"/> PIN: <span className="text-slate-900">{t.pin}</span></div>
-      </div>
-    ))}
+    <footer>
+      Tip: Change route definitions, tasks, and PINs in the code before printing. Keep PINs secret.
+    </footer>
   </div>
-</Card>
 
-); }
+  <script>
+  /*************************************************************************
+   * Single-file offline app (converted from React to plain HTML + JS)
+   * Edit LOCATIONS, TASKS, ROUTES below before printing for your event.
+   ***************************************************************************/
 
-function Printables() { const [which, setWhich] = useLocalState("print:which", "marshal");
+  // ---------- CONFIG: LOCATIONS ----------
+  const LOCATIONS = {
+    LIB_A: { id: "LIB_A", title: "Library – Block A", block: "A", type: "Library" },
+    DRAW_A: { id: "DRAW_A", title: "Drawing Room – Block A", block: "A", type: "Room" },
+    LAB_DS: { id: "LAB_DS", title: "Data Science Lab – Block A", block: "A", type: "Computer Lab" },
+    LAB_P1: { id: "LAB_P1", title: "Programming Lab 1 – Block A", block: "A", type: "Computer Lab" },
+    LAB_P2: { id: "LAB_P2", title: "Programming Lab 2 – Block A", block: "A", type: "Computer Lab" },
+    HALL_A1: { id: "HALL_A1", title: "Seminar Hall 1 – Block A", block: "A", type: "Hall" },
+    HALL_A2: { id: "HALL_A2", title: "Seminar Hall 2 – Block A", block: "A", type: "Hall" },
+    HALL_C3: { id: "HALL_C3", title: "Seminar Hall 3 – Block C", block: "C", type: "Hall" },
+    CANT_B: { id: "CANT_B", title: "Canteen – Block B", block: "B", type: "Canteen" },
+    CANT_C: { id: "CANT_C", title: "Canteen – Block C", block: "C", type: "Canteen" },
+    NB_A1: { id: "NB_A1", title: "Notice Board 1 – Block A", block: "A", type: "Notice Board" },
+    NB_A2: { id: "NB_A2", title: "Notice Board 2 – Block A", block: "A", type: "Notice Board" },
+    NB_A3: { id: "NB_A3", title: "Notice Board 3 – Block A", block: "A", type: "Notice Board" },
+    NB_A4: { id: "NB_A4", title: "Notice Board 4 – Block A", block: "A", type: "Notice Board" },
+    NB_A5: { id: "NB_A5", title: "Notice Board 5 – Block A", block: "A", type: "Notice Board" },
+    NB_A6: { id: "NB_A6", title: "Notice Board 6 – Block A", block: "A", type: "Notice Board" },
+  };
 
-return ( <div className="grid gap-4"> <Card> <div className="flex items-center justify-between gap-4"> <div> <h2 className="text-xl font-semibold"><Download className="inline w-5 h-5 mr-2"/> Printables</h2> <p className="text-sm text-slate-600">Use browser print (Ctrl/Cmd+P). For PDFs, choose "Save as PDF".</p> </div> <div className="flex gap-2"> <button className={px-3 py-2 rounded-xl border ${which==="marshal"?"bg-black text-white":"bg-white"}} onClick={()=>setWhich("marshal")}>Marshal Sheets</button> <button className={px-3 py-2 rounded-xl border ${which==="routes"?"bg-black text-white":"bg-white"}} onClick={()=>setWhich("routes")}>Team Route Cards</button> </div> </div> </Card>
+  // ---------- CONFIG: TASKS ----------
+  const TASKS = {
+    LIB_A: [
+      { name: "Book Cipher", instructions: "Find the marked book at shelf 'CS-01'. Decode: Page 42 → 5th word, Page 7 → 1st, Page 99 → 3rd, then anagram the four words to get a campus keyword. Show marshal.", proof: "Show the four words + final keyword to marshal.", pin: "1843" },
+      { name: "Quiet Hunt", instructions: "Locate a book whose author's initials match your team name initials. Take a silent 'reading circle' photo (no faces needed) and show to marshal.", proof: "Photo + book spine.", pin: "2961" },
+      { name: "Index Race", instructions: "Use the book index to find the definition of 'algorithm'. Copy exactly the first ten words by hand on the slip. No phones.", proof: "Handwritten line shown to marshal.", pin: "5308" },
+    ],
+    DRAW_A: [
+      { name: "One-Min Logo", instructions: "As a team, sketch the ISTE logo in 60 seconds using only triangles. All team members must add at least one triangle.", proof: "Completed sketch.", pin: "4410" },
+      { name: "Robot Charades", instructions: "In absolute silence, act like a malfunctioning robot for 20 seconds while tracing a path on paper that spells a letter. Marshal must guess the letter.", proof: "Marshal says the letter correctly.", pin: "7724" },
+      { name: "Blindfold Blueprint", instructions: "One member is blindfolded and draws a simple house guided only by teammates' verbal directions (no pointing).", proof: "recognizable house sketch.", pin: "0956" },
+    ],
+    LAB_DS: [
+      { name: "Cable Logic", instructions: "On the table are 5 labeled cables (A–E). Arrange them so that 'binary' order (0=short,1=long) matches a given pattern on the card.", proof: "Correct arrangement per marshal's key.", pin: "6127" },
+      { name: "Post-it Cluster", instructions: "Group 7 tech terms into 2 clusters (Data vs. Model) using post-its. Explain your grouping in one sentence.", proof: "Correct/acceptable clustering.", pin: "3885" },
+      { name: "Decode & Point", instructions: "Given a printed line of 8-bit binary, convert to ASCII letters (use any method) and point to the next block mentioned.", proof: "Correct block identified.", pin: "4409" },
+    ],
+    LAB_P1: [
+      { name: "If-Else Relay", instructions: "Marshal reads conditions (IF wearing glasses THEN clap twice; ELSE stomp once; IF wearing watch THEN spin). Team performs the right sequence.", proof: "Correct sequence performed without error.", pin: "1342" },
+      { name: "Sort Yourselves", instructions: "Sort the team by birthday month from Jan→Dec without speaking. When done, say the months in order.", proof: "Correct order.", pin: "5571" },
+      { name: "Stack & Queue", instructions: "Use cups to demonstrate PUSH, POP (stack) and ENQUEUE, DEQUEUE (queue). Marshal calls operations; perform live.", proof: "Performed correctly.", pin: "2090" },
+    ],
+    LAB_P2: [
+      { name: "Regex Hunt", instructions: "On a printed sheet of random characters, circle all vowels that are immediately followed by a digit. Count aloud.", proof: "Correct count.", pin: "6815" },
+      { name: "Binary Beat", instructions: "Clap '1', stay silent '0' to perform this 16-bit rhythm. Teammate writes the bits they hear.", proof: "Written bits match the card.", pin: "7602" },
+      { name: "Pointer Dance", instructions: "Place arrows on the floor to form a cycle (A→B→C→A). Walk the cycle twice, then break it by removing one arrow to make a list.", proof: "Cycle then linear list demonstrated.", pin: "9988" },
+    ],
+    CANT_B: [
+      { name: "Human Wi‑Fi", instructions: "Pose as a human Wi‑Fi icon (concentric arcs). Take a photo and show marshal (faces optional).", proof: "Photo shown.", pin: "4321" },
+      { name: "Menu Cipher", instructions: "Using the menu board, take the first letter of 6 different items to form a word related to tech. Read it aloud.", proof: "Recognizable tech word.", pin: "8703" },
+      { name: "Under‑Table Quest", instructions: "Find the sticker under a table with a shape. Recreate the shape using spoons/packets on top of the table.", proof: "Shape matches.", pin: "2146" },
+    ],
+    CANT_C: [
+      { name: "Snack Math", instructions: "Pick any 3 snack prices. Add them. Map sum to letters (A1Z26). Say the 3-letter code.", proof: "3-letter code correct.", pin: "3024" },
+      { name: "Queue Etiquette", instructions: "Demonstrate a perfect queue: equal spacing, quiet, forward only when allowed. Hold 10 seconds.", proof: "Marshal satisfied.", pin: "5520" },
+      { name: "Emoji Order", instructions: "Given 6 printed emojis, arrange to tell a 'canteen' story. Narrate in one sentence.", proof: "Coherent story.", pin: "7719" },
+    ],
+    HALL_A1: [
+      { name: "Lightning Skit", instructions: "Act out 'Inventing the light bulb' in 20 seconds without words. End with a freeze pose.", proof: "Marshal amused (subjective but fair).", pin: "6401" },
+      { name: "Rebus Logic", instructions: "Solve a printed rebus (e.g., 'R E A D I N G' stacked over 'ROOM') → 'Reading Room'. Explain answer.", proof: "Correct explanation.", pin: "9011" },
+      { name: "Math→Word", instructions: "Solve: (7×4) – 9 = ?. Map to letter via A1Z26. Combine with two more mini sums to form a 3-letter word.", proof: "Word matches key.", pin: "2654" },
+    ],
+    HALL_A2: [
+      { name: "Tongue Twister Relay", instructions: "Each member says one word of a tongue twister in order without mistakes. Two retries max.", proof: "Flawless round.", pin: "8842" },
+      { name: "Paper Tower", instructions: "Build the tallest free‑standing paper tower in 2 minutes using 6 sheets and tape.", proof: "Stands for 5 seconds.", pin: "1190" },
+      { name: "Echo Location", instructions: "Marshal whispers a 5-word campus phrase. Team repeats exactly. (No recording.)", proof: "Exact repeat.", pin: "3356" },
+    ],
+    HALL_C3: [
+      { name: "Silent Sudoku Mini", instructions: "Fill a 3×3 mini Sudoku from a printed card. No talking allowed.", proof: "Correct grid.", pin: "7440" },
+      { name: "Tech Pictionary", instructions: "Draw a 'Bluetooth' symbol without writing letters/numbers. Teammates must guess.", proof: "Correct guess.", pin: "5529" },
+      { name: "Freeze Frame", instructions: "Create a silent tableau of 'Teamwork'. Hold pose for 8 seconds.", proof: "Pose held.", pin: "6625" },
+    ],
+    NB_A1: [
+      { name: "Find the Tiny", instructions: "Locate the micro-sticker '∆' on this board. Draw it 5× bigger on the slip.", proof: "Scaled drawing.", pin: "1408" },
+      { name: "Word Sweep", instructions: "From any 4 notices, grab the first letter of the first line to form a word.", proof: "Word shown.", pin: "5113" },
+      { name: "Odd One Out", instructions: "Given 5 small icons on a card, pin the odd one to the board and explain why.", proof: "Reasonable explanation.", pin: "8864" },
+    ],
+    NB_A2: [
+      { name: "Arrow Trail", instructions: "Follow 3 tiny arrows on the board to a small circle. Copy the circle pattern.", proof: "Pattern copied.", pin: "3301" },
+      { name: "Rhyme Time", instructions: "Make a two-line rhyme using a word from a notice.", proof: "Rhyme recited.", pin: "2775" },
+      { name: "Count & Tell", instructions: "Count total sheets on this board and say it backwards.", proof: "Correct count.", pin: "9443" },
+    ],
+    NB_A3: [
+      { name: "Color Pick", instructions: "Name all distinct paper colors on this board within 10 seconds.", proof: "All colors named.", pin: "5012" },
+      { name: "Date Scan", instructions: "Find the earliest date visible and say the exact day-month-year.", proof: "Correct date.", pin: "6821" },
+      { name: "Font Spy", instructions: "Identify a serif vs sans-serif head on the board. Point to both.", proof: "Both identified.", pin: "7130" },
+    ],
+    NB_A4: [
+      { name: "Corner Quest", instructions: "There is a dot in one corner (tiny). Find and touch it simultaneously as a team.", proof: "Team touching corner.", pin: "4026" },
+      { name: "Arrow Math", instructions: "There are 3 arrows hidden. Sum their directions: up=+1, down=−1, left=+2, right=−2.", proof: "Correct total.", pin: "2650" },
+      { name: "Missing Vowel", instructions: "Pick a notice title and say it without vowels.", proof: "Correct transformation.", pin: "9399" },
+    ],
+    NB_A5: [
+      { name: "Sticker Grid", instructions: "Find a 2×2 grid of tiny stickers (•• / ••). Recreate it on paper.", proof: "Grid drawn.", pin: "7750" },
+      { name: "Hashtag Hunt", instructions: "Find a # symbol anywhere on this board or notices. Point it out.", proof: "Located.", pin: "6201" },
+      { name: "Palindrome", instructions: "From any line on a notice, extract a 3-letter palindrome (e.g., 'aba').", proof: "Palindrome shown.", pin: "4312" },
+    ],
+    NB_A6: [
+      { name: "Right or Left", instructions: "Count how many notices have right-aligned text. Say the number.", proof: "Correct count.", pin: "9042" },
+      { name: "Icon Match", instructions: "Find a phone/email icon. Mimic it as a pose.", proof: "Pose matches.", pin: "2585" },
+      { name: "Tear Edge", instructions: "Locate a torn edge notice. Estimate the missing area in squares (1 sq = your palm).", proof: "Reasonable estimate.", pin: "1177" },
+    ],
+  };
 
-{which === "marshal" ? <MarshalSheetsPrintable/> : <RouteCardsPrintable/>}
-</div>
+  // ---------- CONFIG: ROUTES (examples) ----------
+  const ROUTES = {
+    TEAM_01: ["HALL_A1", "LIB_A", "CANT_B", "LAB_P1", "NB_A3", "CANT_C", "HALL_C3"],
+    TEAM_02: ["CANT_C", "DRAW_A", "NB_A2", "LAB_P2", "CANT_B", "HALL_A2", "LIB_A"],
+    TEAM_03: ["HALL_A2", "NB_A1", "CANT_C", "LIB_A", "LAB_P1", "DRAW_A", "CANT_B"],
+    TEAM_04: ["NB_A4", "LAB_DS", "HALL_A1", "CANT_B", "LIB_A", "HALL_C3", "CANT_C"],
+    TEAM_05: ["LAB_P2", "HALL_C3", "CANT_B", "NB_A5", "DRAW_A", "LIB_A", "HALL_A2"],
+    TEAM_06: ["NB_A6", "CANT_C", "HALL_A1", "LAB_DS", "CANT_B", "NB_A2", "LIB_A"],
+    TEAM_07: ["CANT_B", "NB_A3", "LAB_P1", "HALL_A2", "LIB_A", "DRAW_A", "HALL_C3"],
+    TEAM_08: ["DRAW_A", "LIB_A", "NB_A4", "CANT_C", "LAB_P2", "HALL_A1", "CANT_B"],
+    TEAM_09: ["LAB_DS", "CANT_B", "NB_A1", "HALL_C3", "LIB_A", "NB_A5", "HALL_A2"],
+    TEAM_10: ["NB_A2", "DRAW_A", "HALL_A1", "CANT_B", "LAB_P1", "LIB_A", "CANT_C"],
+  };
 
-); }
+  const TEAM_IDS = Object.keys(ROUTES);
+  const prettyTeam = id => id.replace("_", " ");
 
-function MarshalSheetsPrintable() { const blocks = Object.values(LOCATIONS).reduce((acc, L) => { (acc[L.block] ||= []).push(L); return acc; }, {});
+  // ---------- LocalStorage helpers ----------
+  function readLS(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  function writeLS(key, value){
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+  const progressKey = tid => `progress:${tid}`;
 
-return ( <div className="print:p-0"> {Object.keys(blocks).sort().map(block => ( <div key={block} className="break-inside-avoid rounded-2xl shadow bg-white border p-6 mb-6"> <h3 className="text-2xl font-bold mb-2">Block {block} – Marshal Sheets</h3> <p className="text-sm text-slate-600 mb-4">Cut and hand the relevant sheet to the marshal at each location.</p> <div className="grid md:grid-cols-2 gap-4"> {blocks[block].map(L => ( <div key={L.id} className="rounded-xl border p-4"> <div className="flex items-center justify-between mb-1"> <div className="font-semibold">{L.title}</div> <Badge>{L.type}</Badge> </div> {(TASKS[L.id]||[]).map((t, i) => ( <div key={i} className="mt-3 p-3 rounded-lg bg-slate-50 border"> <div className="flex items-center justify-between"> <div className="font-medium">Variant {i+1}: {t.name}</div> <Badge>PIN: {t.pin}</Badge> </div> <div className="text-sm whitespace-pre-wrap mt-1">{t.instructions}</div> <div className="text-xs text-slate-600 mt-1">Proof: {t.proof}</div> </div> ))} </div> ))} </div> </div> ))} </div> ); }
+  // ---------- App state (persisted) ----------
+  let state = {
+    mode: readLS("mode", "team"),           // "team" | "marshal" | "print"
+    teamId: readLS("teamId", TEAM_IDS[0] || ""),
+    marshalLoc: readLS("marshal:loc", "LIB_A"),
+    printWhich: readLS("print:which", "marshal"),
+  };
 
-function RouteCardsPrintable() { return ( <div className="grid gap-4"> {TEAM_IDS.map((tid) => ( <div key={tid} className="break-inside-avoid rounded-2xl shadow bg-white border p-6"> <div className="flex items-center justify-between"> <h3 className="text-xl font-bold">Team Card – {prettyTeam(tid)}</h3> <Badge>Checkpoints: {ROUTES[tid].length}</Badge> </div> <ol className="list-decimal pl-5 mt-3 space-y-1"> {ROUTES[tid].map((lid, i) => ( <li key={lid+"-"+i} className="text-sm"> <span className="font-medium">{LOCATIONS[lid].title}</span> <span className="ml-2 text-xs text-slate-500">(Block {LOCATIONS[lid].block}, {LOCATIONS[lid].type})</span> </li> ))} </ol> <div className="mt-3 text-xs text-slate-600">Note: Marshals will assign a task at each location. After success, they will tell you a 4‑digit PIN to unlock the next step in the app.</div> </div> ))} </div> ); }
+  // ---------- Utility: verify PIN ----------
+  function verifyPin(locationId, pin) {
+    const variants = TASKS[locationId] || [];
+    return variants.some(v => v.pin === pin);
+  }
 
+  // ---------- Render helpers ----------
+  const main = document.getElementById('app-main');
+  function render() {
+    // Update mode buttons active state
+    document.getElementById('mode-team').classList.toggle('active', state.mode === 'team');
+    document.getElementById('mode-marshal').classList.toggle('active', state.mode === 'marshal');
+    document.getElementById('mode-print').classList.toggle('active', state.mode === 'print');
+
+    if (state.mode === 'team') renderTeamView();
+    else if (state.mode === 'marshal') renderMarshalView();
+    else renderPrintablesView();
+    writeLS('mode', state.mode);
+  }
+
+  // ---------- Team view ----------
+  function renderTeamView(){
+    const teamId = state.teamId;
+    const route = ROUTES[teamId] || [];
+    const progress = readLS(progressKey(teamId), { idx: 0, unlocked: false, history: [] });
+    const finished = progress.idx >= route.length;
+    const currentId = route[progress.idx];
+    const location = LOCATIONS[currentId];
+
+    main.innerHTML = `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div class="label">Team</div>
+            <div class="small">Pick your assigned team ID.</div>
+          </div>
+          <div style="min-width:220px;">
+            <select id="team-select" aria-label="Select team" style="width:100%">
+              ${TEAM_IDS.map(id => `<option value="${id}" ${id===teamId ? 'selected' : ''}>${prettyTeam(id)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="card" style="padding:14px">
+            ${ finished ? `
+              <div style="text-align:center;padding:18px">
+                <div style="font-size:32px;color:${'var(--success)'}">✔</div>
+                <h3 style="margin:8px 0 6px">Treasure Found!</h3>
+                <div class="muted">Show this screen at the finish desk.</div>
+                <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+                  <span class="badge">Route: ${teamId}</span>
+                  <span class="badge">Checkpoints: ${route.length}</span>
+                </div>
+                <div style="margin-top:12px">
+                  <button id="reset-team" class="btn">Reset</button>
+                </div>
+              </div>
+            ` : `
+              <div class="row" style="align-items:center;gap:12px">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="icon">📍</span>
+                  <div><div class="small">Next Location</div><div style="font-weight:700">${location ? location.title : '—'}</div></div>
+                </div>
+                <div style="margin-left:auto"><span class="badge">Block ${location ? location.block : '—'}</span></div>
+              </div>
+
+              <div class="two-col" style="margin-top:12px">
+                <div>
+                  <div class="task-card">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <span>🗒️</span><div style="font-weight:700">Task at this checkpoint</div>
+                    </div>
+                    <div class="small">Ask the marshal for your task. Complete it to receive a 4‑digit PIN.</div>
+                    <div class="muted" style="margin-top:8px">🔒 Human‑verified. No AI shortcuts.</div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="task-card">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <span>� QR</span><div style="font-weight:700">Unlock Next Clue</div>
+                    </div>
+
+                    ${progress.unlocked ? `
+                      <div class="row" style="align-items:center;gap:8px">
+                        <div class="success">🔓 Unlocked. Proceed to the next location.</div>
+                      </div>
+                    ` : `
+                      <form id="verify-form">
+                        <input id="pin-input" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="Enter 4‑digit PIN" style="width:100%" />
+                        <div style="margin-top:8px">
+                          <button type="submit" class="btn full">Verify</button>
+                        </div>
+                      </form>
+                    `}
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                  ${route.map((lid,i) => {
+                    const status = i < progress.idx ? '✓ ' : (i===progress.idx ? '• ' : '');
+                    const type = LOCATIONS[lid] ? LOCATIONS[lid].type : lid;
+                    return `<span class="badge small" title="${LOCATIONS[lid] ? LOCATIONS[lid].title : lid}">${status}${type}</span>`;
+                  }).join('')}
+                </div>
+
+                <div>
+                  ${progress.unlocked ? `<button id="continue-btn" class="btn">Continue</button>` : ''}
+                </div>
+              </div>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Attach listeners
+    document.getElementById('team-select').addEventListener('change', (e) => {
+      state.teamId = e.target.value;
+      writeLS('teamId', state.teamId);
+      render(); // re-render with new team
+    });
+
+    if (!finished) {
+      const pinInput = document.getElementById('pin-input');
+      if (pinInput) {
+        pinInput.addEventListener('input', (e) => {
+          // numeric only, max 4
+          e.target.value = e.target.value.replace(/\D/g, '').slice(0,4);
+        });
+      }
+      const form = document.getElementById('verify-form');
+      if (form) {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const pinValue = (document.getElementById('pin-input') || {value:''}).value;
+          if (!pinValue || pinValue.length < 1) { alert('Enter the 4‑digit PIN given by the marshal.'); return; }
+          const ok = verifyPin(currentId, pinValue);
+          if (ok) {
+            const newProgress = {...progress, unlocked: true};
+            writeLS(progressKey(teamId), newProgress);
+            render();
+          } else {
+            alert('Incorrect PIN. Ask marshal.');
+          }
+        });
+      }
+      const cont = document.getElementById('continue-btn');
+      if (cont) {
+        cont.addEventListener('click', () => {
+          const now = readLS(progressKey(teamId), { idx: 0, unlocked: false, history: [] });
+          const nextIdx = now.idx + 1;
+          const newHistory = (now.history || []).concat(now.idx < route.length ? route[now.idx] : []);
+          const newProgress = { idx: nextIdx, unlocked: false, history: newHistory };
+          writeLS(progressKey(teamId), newProgress);
+          render();
+        });
+      }
+    } else {
+      // finished
+      const resetBtn = document.getElementById('reset-team');
+      resetBtn && resetBtn.addEventListener('click', () => {
+        writeLS(progressKey(teamId), { idx: 0, unlocked: false, history: [] });
+        render();
+      });
+    }
+  }
+
+  // ---------- Marshal view ----------
+  function renderMarshalView(){
+    const loc = state.marshalLoc || Object.keys(LOCATIONS)[0];
+    const tasks = TASKS[loc] || [];
+    main.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div>
+            <div class="label">Marshal Station</div>
+            <div class="small">Choose your location to view task options and the secret PINs.</div>
+          </div>
+          <div style="min-width:260px">
+            <select id="marshal-select" style="width:100%">
+              ${Object.values(LOCATIONS).map(L => `<option value="${L.id}" ${L.id===loc ? 'selected' : ''}>${L.title}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top:12px" class="grid">
+          <div class="two-col">
+            ${tasks.map((t,idx) => `
+              <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div style="font-weight:700">${t.name}</div>
+                  <div class="badge">Variant ${idx+1}</div>
+                </div>
+                <div class="small" style="margin-top:8px">${t.instructions}</div>
+                <div class="muted" style="margin-top:8px">Proof: ${t.proof}</div>
+                <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+                  <div class="pin">PIN: ${t.pin}</div>
+                  <button class="pin-copy" data-pin="${t.pin}">Copy</button>
+                </div>
+              </div>
+            `).join('') }
+          </div>
+          ${tasks.length === 0 ? `<div class="muted">No tasks configured for ${loc}.</div>` : ''}
+        </div>
+      </div>
+    `;
+
+    document.getElementById('marshal-select').addEventListener('change', (e) => {
+      state.marshalLoc = e.target.value;
+      writeLS('marshal:loc', state.marshalLoc);
+      render();
+    });
+
+    document.querySelectorAll('.pin-copy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = btn.dataset.pin || '';
+        navigator.clipboard?.writeText(p).then(() => {
+          btn.textContent = 'Copied';
+          setTimeout(() => btn.textContent = 'Copy', 900);
+        }).catch(() => {
+          alert('PIN: ' + p);
+        });
+      });
+    });
+  }
+
+  // ---------- Printables view ----------
+  function renderPrintablesView(){
+    const which = state.printWhich || 'marshal';
+    main.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div class="label">Printables</div>
+            <div class="small">Use browser print (Ctrl/Cmd+P). For PDFs, choose "Save as PDF".</div>
+          </div>
+          <div class="print-actions">
+            <button id="print-marshal" class="mode-btn ${which==='marshal' ? 'active' : ''}">Marshal Sheets</button>
+            <button id="print-routes" class="mode-btn ${which==='routes' ? 'active' : ''}">Team Route Cards</button>
+            <button id="do-print" class="btn">Print</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          ${ which === 'marshal' ? renderMarshalSheetsHTML() : renderRouteCardsHTML() }
+        </div>
+      </div>
+    `;
+
+    document.getElementById('print-marshal').addEventListener('click', () => {
+      state.printWhich = 'marshal'; writeLS('print:which', state.printWhich); render();
+    });
+    document.getElementById('print-routes').addEventListener('click', () => {
+      state.printWhich = 'routes'; writeLS('print:which', state.printWhich); render();
+    });
+    document.getElementById('do-print').addEventListener('click', () => window.print());
+  }
+
+  function renderMarshalSheetsHTML(){
+    // group by block
+    const blocks = {};
+    Object.values(LOCATIONS).forEach(L => {
+      (blocks[L.block] = blocks[L.block] || []).push(L);
+    });
+    const keys = Object.keys(blocks).sort();
+    return keys.map(block => `
+      <div style="margin-bottom:12px">
+        <h3 style="margin:6px 0">Block ${block} – Marshal Sheets</h3>
+        <div class="muted">Cut and hand the relevant sheet to the marshal at each location.</div>
+        <div style="margin-top:8px">
+          ${blocks[block].map(L => `
+            <div class="card" style="margin-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-weight:700">${L.title}</div>
+                <div class="badge">${L.type}</div>
+              </div>
+              <div style="margin-top:8px">
+                ${(TASKS[L.id] || []).map((t,i) => `
+                  <div style="margin-top:8px">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                      <div style="font-weight:600">Variant ${i+1}: ${t.name}</div>
+                      <div class="pin">${t.pin}</div>
+                    </div>
+                    <div class="small" style="margin-top:6px">${t.instructions}</div>
+                    <div class="muted" style="margin-top:4px">Proof: ${t.proof}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderRouteCardsHTML(){
+    return `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${TEAM_IDS.map(tid => `
+          <div class="team-card">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="font-weight:700">Team Card – ${prettyTeam(tid)}</div>
+              <div class="badge">Checkpoints: ${ROUTES[tid].length}</div>
+            </div>
+            <ul style="margin-top:8px">
+              ${ROUTES[tid].map((lid, i) => `
+                <li class="small">${LOCATIONS[lid].title} (Block ${LOCATIONS[lid].block}, ${LOCATIONS[lid].type})</li>
+              `).join('')}
+            </ul>
+            <div class="muted" style="margin-top:8px">Note: Marshals will assign a task at each location. After success, they will tell you a 4‑digit PIN to unlock the next step in the app.</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // ---------- Mode buttons ----------
+  document.getElementById('mode-team').addEventListener('click', () => { state.mode = 'team'; writeLS('mode', state.mode); render(); });
+  document.getElementById('mode-marshal').addEventListener('click', () => { state.mode = 'marshal'; writeLS('mode', state.mode); render(); });
+  document.getElementById('mode-print').addEventListener('click', () => { state.mode = 'print'; writeLS('mode', state.mode); render(); });
+
+  // Initial render
+  render();
+  </script>
+</body>
+</html>
